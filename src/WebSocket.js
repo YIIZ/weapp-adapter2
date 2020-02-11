@@ -14,7 +14,7 @@ export default class WebSocket {
     this.protocol = '' // TODO 小程序内目前获取不到，实际上需要根据服务器选择的 sub-protocol 返回
     this.readyState = 3
 
-    if (typeof url !== 'string' || !(/(^ws:\/\/)|(^wss:\/\/)/).test(url)) {
+    if (typeof url !== 'string' || !/(^ws:\/\/)|(^wss:\/\/)/.test(url)) {
       throw new TypeError(`Failed to construct 'WebSocket': The URL '${url}' is invalid`)
     }
 
@@ -23,19 +23,19 @@ export default class WebSocket {
 
     const socketTask = wx.connectSocket({
       url,
-      protocols: Array.isArray(protocols) ? protocols : [protocols]
+      protocols: Array.isArray(protocols) ? protocols : [protocols],
     })
 
     _socketTask.set(this, socketTask)
 
-    socketTask.onClose((res) => {
+    socketTask.onClose(res => {
       this.readyState = WebSocket.CLOSED
       if (typeof this.onclose === 'function') {
         this.onclose(res)
       }
     })
 
-    socketTask.onMessage((res) => {
+    socketTask.onMessage(res => {
       if (typeof this.onmessage === 'function') {
         this.onmessage(res)
       }
@@ -48,7 +48,7 @@ export default class WebSocket {
       }
     })
 
-    socketTask.onError((res) => {
+    socketTask.onError(res => {
       if (typeof this.onerror === 'function') {
         this.onerror(new Error(res.errMsg))
       }
@@ -63,7 +63,7 @@ export default class WebSocket {
 
     socketTask.close({
       code,
-      reason
+      reason,
     })
   }
 
@@ -75,7 +75,7 @@ export default class WebSocket {
     const socketTask = _socketTask.get(this)
 
     socketTask.send({
-      data
+      data,
     })
   }
 }

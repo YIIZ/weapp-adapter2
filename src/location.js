@@ -1,8 +1,9 @@
 const location = {
   href: 'game.js',
 
-  reload() {
-  },
+  search: '',
+
+  reload() {},
 
   replace(href) {
     this.href = href
