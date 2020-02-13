@@ -1,20 +1,16 @@
 import HTMLAudioElement from './HTMLAudioElement'
 
-let SN_SEED = 1
-
-const _innerAudioContextMap = {}
+const _innerAudioContextMap = new WeakMap()
 
 export default class Audio extends HTMLAudioElement {
   constructor(url) {
     super()
 
-    this._$sn = SN_SEED++
-
     this.readyState = Audio.HAVE_NOTHING
 
     const innerAudioContext = wx.createInnerAudioContext()
 
-    _innerAudioContextMap[this._$sn] = innerAudioContext
+    _innerAudioContextMap.set(this, innerAudioContext)
 
     this._canplayEvents = ['load', 'loadend', 'canplay', 'canplaythrough', 'loadedmetadata']
 
@@ -24,49 +20,37 @@ export default class Audio extends HTMLAudioElement {
       this.dispatchEvent({ type: 'load' })
       this.dispatchEvent({ type: 'loadend' })
       this.dispatchEvent({ type: 'loadedmetadata' })
-      this.dispatchEvent({ type: 'canplay' })
-      this.dispatchEvent({ type: 'canplaythrough' })
-      this.dispatchEvent({ type: 'play' })
+
+      if (this.readyState !== Audio.HAVE_FUTURE_DATA && this.duration !== 0) {
+        this.handleCanPlay()
+      }
     })
     innerAudioContext.onTimeUpdate(() => {
+      if (this.readyState !== Audio.HAVE_FUTURE_DATA && this.duration !== 0) {
+        this.handleCanPlay()
+      }
       this.dispatchEvent({ type: 'timeupdate' })
     })
     innerAudioContext.onPlay(() => {
-      this.playResolve()
-      this._paused = _innerAudioContextMap[this._$sn].paused
       this.dispatchEvent({ type: 'play' })
     })
     innerAudioContext.onPause(() => {
-      this._paused = _innerAudioContextMap[this._$sn].paused
       this.dispatchEvent({ type: 'pause' })
     })
     innerAudioContext.onEnded(() => {
-      this._paused = _innerAudioContextMap[this._$sn].paused
-      if (_innerAudioContextMap[this._$sn].loop === false) {
-        this.dispatchEvent({ type: 'ended' })
-      }
+      this.dispatchEvent({ type: 'ended' })
       this.readyState = Audio.HAVE_ENOUGH_DATA
     })
     innerAudioContext.onError(() => {
-      this._paused = _innerAudioContextMap[this._$sn].paused
       this.dispatchEvent({ type: 'error' })
     })
 
     if (url) {
-      this.src = url
-    } else {
-      this._src = ''
+      innerAudioContext.src = url
     }
 
-    this._loop = innerAudioContext.loop
-    this._autoplay = innerAudioContext.autoplay
-    this._paused = innerAudioContext.paused
     this._volume = innerAudioContext.volume
     this._muted = false
-  }
-
-  context() {
-    return _innerAudioContextMap[this._$sn]
   }
 
   addEventListener(type, listener, options = {}) {
@@ -79,29 +63,40 @@ export default class Audio extends HTMLAudioElement {
     }
   }
 
+  handleCanPlay() {
+    if (this.readyState === Audio.HAVE_FUTURE_DATA) return
+    if (this.loadMute) {
+      this.loadMute = false
+      _innerAudioContextMap.get(this).volume = this._volume
+    }
+    this.readyState = Audio.HAVE_FUTURE_DATA
+    this.dispatchEvent({ type: 'canplay' })
+    this.dispatchEvent({ type: 'canplaythrough' })
+    this.dispatchEvent({ type: 'play' })
+  }
+
   play() {
-    _innerAudioContextMap[this._$sn].play()
-    if (this.playPromise) return this.playPromise
-    this.playPromise = new Promise(r => {
-      this.playResolve = r
-    })
-    return this.playPromise
+    return _innerAudioContextMap.get(this).play()
   }
 
   resume() {
-    _innerAudioContextMap[this._$sn].resume()
+    return _innerAudioContextMap.get(this).resume()
   }
 
   pause() {
-    _innerAudioContextMap[this._$sn].pause()
+    _innerAudioContextMap.get(this).pause()
   }
 
   destroy() {
-    _innerAudioContextMap[this._$sn].destroy()
+    _innerAudioContextMap.get(this).destroy()
   }
 
   load() {
-    console.warn('HTMLAudioElement.load() is not implemented.')
+    // TODO can't preload
+    if (this._loaded) return
+    this.loadMute = true
+    _innerAudioContextMap.get(this).volume = 0
+    this.play()
   }
 
   canPlayType(mediaType = '') {
@@ -116,61 +111,56 @@ export default class Audio extends HTMLAudioElement {
   }
 
   get currentTime() {
-    return _innerAudioContextMap[this._$sn].currentTime
+    return _innerAudioContextMap.get(this).currentTime
   }
 
   set currentTime(value) {
-    _innerAudioContextMap[this._$sn].seek(value)
+    _innerAudioContextMap.get(this).seek(value)
   }
 
   get duration() {
-    return _innerAudioContextMap[this._$sn].duration
+    return _innerAudioContextMap.get(this).duration
   }
 
   get src() {
-    return this._src
+    return _innerAudioContextMap.get(this).src
   }
 
   set src(value) {
-    this._src = value
+    if (Array.isArray(value)) value = value[0]
     this._loaded = false
     this.readyState = Audio.HAVE_NOTHING
-
-    const innerAudioContext = _innerAudioContextMap[this._$sn]
-
-    innerAudioContext.src = value
+    _innerAudioContextMap.get(this).src = value
   }
 
   get loop() {
-    return this._loop
+    return _innerAudioContextMap.get(this).loop
   }
 
   set loop(value) {
-    this._loop = value
-    _innerAudioContextMap[this._$sn].loop = value
+    _innerAudioContextMap.get(this).loop = value
   }
 
   get autoplay() {
-    return this._autoplay
+    return _innerAudioContextMap.get(this).autoplay
   }
 
   set autoplay(value) {
-    this._autoplay = value
-    _innerAudioContextMap[this._$sn].autoplay = value
+    _innerAudioContextMap.get(this).autoplay = value
   }
 
   get paused() {
-    return this._paused
+    return _innerAudioContextMap.get(this).paused
   }
 
   get volume() {
-    return this._volume
+    return _innerAudioContextMap.get(this).volume
   }
 
   set volume(value) {
     this._volume = value
     if (!this._muted) {
-      _innerAudioContextMap[this._$sn].volume = value
+      _innerAudioContextMap.get(this).volume = value
     }
   }
 
@@ -181,9 +171,9 @@ export default class Audio extends HTMLAudioElement {
   set muted(value) {
     this._muted = value
     if (value) {
-      _innerAudioContextMap[this._$sn].volume = 0
+      _innerAudioContextMap.get(this).volume = 0
     } else {
-      _innerAudioContextMap[this._$sn].volume = this._volume
+      _innerAudioContextMap.get(this).volume = this._volume
     }
   }
 
