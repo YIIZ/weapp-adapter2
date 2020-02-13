@@ -16,7 +16,9 @@ export default class Audio extends HTMLAudioElement {
 
     innerAudioContext.onCanplay(() => {
       this._loaded = true
-      this.readyState = Audio.HAVE_CURRENT_DATA
+      if (this.readyState < Audio.HAVE_CURRENT_DATA) {
+        this.readyState = Audio.HAVE_CURRENT_DATA
+      }
       this.dispatchEvent({ type: 'load' })
       this.dispatchEvent({ type: 'loadend' })
       this.dispatchEvent({ type: 'loadedmetadata' })
@@ -32,12 +34,15 @@ export default class Audio extends HTMLAudioElement {
       this.dispatchEvent({ type: 'timeupdate' })
     })
     innerAudioContext.onPlay(() => {
+      this._paused = innerAudioContext.paused
       this.dispatchEvent({ type: 'play' })
     })
     innerAudioContext.onPause(() => {
+      this._paused = innerAudioContext.paused
       this.dispatchEvent({ type: 'pause' })
     })
     innerAudioContext.onEnded(() => {
+      this._paused = innerAudioContext.paused
       this.dispatchEvent({ type: 'ended' })
       this.readyState = Audio.HAVE_ENOUGH_DATA
     })
@@ -50,6 +55,7 @@ export default class Audio extends HTMLAudioElement {
     }
 
     this._volume = innerAudioContext.volume
+    this._paused = innerAudioContext.paused
     this._muted = false
   }
 
@@ -64,11 +70,12 @@ export default class Audio extends HTMLAudioElement {
   }
 
   handleCanPlay() {
-    if (this.readyState === Audio.HAVE_FUTURE_DATA) return
+    if (this.readyState >= Audio.HAVE_FUTURE_DATA) return
     if (this.loadMute) {
       this.loadMute = false
       _innerAudioContextMap.get(this).volume = this._volume
     }
+
     this.readyState = Audio.HAVE_FUTURE_DATA
     this.dispatchEvent({ type: 'canplay' })
     this.dispatchEvent({ type: 'canplaythrough' })
@@ -76,6 +83,7 @@ export default class Audio extends HTMLAudioElement {
   }
 
   play() {
+    this._paused = false
     return _innerAudioContextMap.get(this).play()
   }
 
@@ -84,6 +92,7 @@ export default class Audio extends HTMLAudioElement {
   }
 
   pause() {
+    this._paused = true
     _innerAudioContextMap.get(this).pause()
   }
 
@@ -150,7 +159,7 @@ export default class Audio extends HTMLAudioElement {
   }
 
   get paused() {
-    return _innerAudioContextMap.get(this).paused
+    return this._paused
   }
 
   get volume() {
