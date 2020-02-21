@@ -6,8 +6,8 @@ let hasModifiedCanvasPrototype = false
 let hasInit2DContextConstructor = false
 let hasInitWebGLContextConstructor = false
 
-export default function Canvas() {
-  const canvas = wx.createCanvas()
+export default function Canvas(canvas) {
+  canvas = canvas || wx.createCanvas()
 
   const _getContext = canvas.getContext
 
